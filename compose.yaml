@@ -1,0 +1,138 @@
+name: sonarqube-ce
+
+# [VIDEO - PARTE 1] Metadados lidos pelo Arcane (getarcane.app): icone do projeto,
+# links rapidos no card e tags coloridas. Os slugs vem do catalogo de icones (selfhst).
+x-arcane:
+  icon: sonarqube
+  icon-light: sonarqube
+  icon-dark: sonarqube
+  urls:
+    - https://sonar.codeinloop.net
+    - https://docs.sonarsource.com/sonarqube-server/10.8/setup-and-upgrade/install-the-server/installing-the-database
+    - https://github.com/mc1arke/sonarqube-community-branch-plugin
+  tags:
+    - name: code-quality
+      color: blue
+    - name: database
+      color: purple
+    - name: devtools
+      color: green
+
+services:
+  # [VIDEO - PARTE 2] O SonarQube embarca um Elasticsearch, que exige limites de kernel
+  # maiores que o padrao do host. Esse container sobe privilegiado, aplica o sysctl e morre.
+  # Os valores da doc sao MINIMOS: por isso o loop so eleva, nunca rebaixa o que ja existe
+  # no host (um "sysctl -w" cru poderia reduzir o fs.file-max de toda a maquina).
+  sysctl:
+    image: busybox:1.37
+    container_name: sonarqube-sysctl
+    privileged: true
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        ensure() {
+          cur=$$(sysctl -n "$$1")
+          if [ "$$cur" -lt "$$2" ]; then
+            sysctl -w "$$1=$$2"
+          else
+            echo "$$1=$$cur ja atende o minimo $$2, mantido"
+          fi
+        }
+        ensure vm.max_map_count 524288
+        ensure fs.file-max 131072
+    restart: "no"
+    labels:
+      arcane.icon: linux
+
+  # [VIDEO - PARTE 3] Banco: a doc do SonarQube exige PostgreSQL com charset UTF-8.
+  # POSTGRES_INITDB_ARGS aplica isso no initdb, antes do banco existir.
+  db:
+    image: postgres:17-alpine
+    container_name: sonarqube-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - sonarnet
+    labels:
+      arcane.icon: postgresql
+
+  sonarqube:
+    build:
+      context: .
+      args:
+        SONARQUBE_VERSION: ${SONARQUBE_VERSION}
+        PLUGIN_VERSION: ${PLUGIN_VERSION}
+    image: sonarqube-ce-branch:${PLUGIN_VERSION}
+    container_name: sonarqube
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      sysctl:
+        condition: service_completed_successfully
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SONAR_JDBC_USERNAME: ${POSTGRES_USER}
+      SONAR_JDBC_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      # Sem isso os links dos comentarios de PR apontam para localhost.
+      SONAR_CORE_SERVERBASEURL: https://${SONAR_DOMAIN}
+    ports:
+      # Bind em loopback: quem entra de fora e o Cloudflare Tunnel, que fala com o
+      # container pela rede docker. Use SONAR_BIND=0.0.0.0 so se precisar acesso direto.
+      - "${SONAR_BIND:-127.0.0.1}:${SONAR_PORT:-9000}:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      # Preserva plugins instalados pelo Marketplace. O JAR do branch plugin nao fica
+      # congelado aqui: o entrypoint reinstala ele a partir da imagem a cada boot.
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+      nproc: 8192
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+    networks:
+      - sonarnet
+    labels:
+      # [VIDEO - PARTE 4] Arcane: icone do servico na lista de containers.
+      arcane.icon-light: sonarqube
+      arcane.icon-dark: sonarqube
+      arcane.icon: sonarqube
+      # [VIDEO - PARTE 4] DockRoute (dockroute.dev) publica o dominio via Cloudflare Tunnel.
+      # tunnel.service tem precedencia sobre dockroute.type/target: nenhum IP e exposto.
+      # A URL e a origem, ou seja, como o cloudflared alcanca o servico DENTRO da rede docker.
+      dockroute.enabled: "true"
+      dockroute.hostname: "${SONAR_DOMAIN}"
+      dockroute.tunnel.service: "http://sonarqube:9000"
+
+volumes:
+  postgres_data:
+  sonarqube_extensions:
+  sonarqube_data:
+  sonarqube_logs:
+
+networks:
+  # Nome fixo (sem prefixo do projeto) para o cloudflared poder entrar nela:
+  # docker network connect sonarnet <container-do-cloudflared>
+  sonarnet:
+    name: sonarnet
