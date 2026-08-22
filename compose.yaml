@@ -115,7 +115,10 @@ services:
       retries: 20
       start_period: 180s
     networks:
+      # sonarnet: conversa com o banco. dockroute_network: e por onde o cloudflared
+      # alcanca este container pelo nome. O db fica fora dela de proposito.
       - sonarnet
+      - dockroute_network
     labels:
       # [VIDEO - PARTE 4] Arcane: icone do servico na lista de containers.
       arcane.icon-light: sonarqube
@@ -135,7 +138,10 @@ volumes:
   sonarqube_logs:
 
 networks:
-  # Nome fixo (sem prefixo do projeto) para o cloudflared poder entrar nela:
-  # docker network connect sonarnet <container-do-cloudflared>
+  # Rede privada do stack. internal: sem rota para fora, o banco so fala com o SonarQube.
   sonarnet:
-    name: sonarnet
+    internal: true
+  # Rede onde o cloudflared ja vive. Precisa existir antes (criada pelo stack do dockroute).
+  dockroute_network:
+    external: true
+    name: dockroute_default

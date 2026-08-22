@@ -33,15 +33,21 @@ Primeiro boot leva ~2-3 min (migracao do banco + Elasticsearch). Login inicial: 
 
 ## Cloudflare Tunnel
 
-`dockroute.tunnel.service` aponta para `http://sonarqube:9000`, que e a origem vista de dentro
-da rede docker. Ou seja, o `cloudflared` precisa estar nessa rede:
+O `cloudflared` alcanca o SonarQube **pelo nome do container**, entao os dois precisam
+compartilhar uma rede. Em vez de `docker network connect` na mao (que se perde quando um
+dos containers e recriado), o SonarQube entra declarativamente nas duas redes:
 
-```bash
-docker network connect sonarnet <container-do-cloudflared>
-```
+| Rede | Quem esta nela | Para que |
+|---|---|---|
+| `sonarnet` (`internal: true`) | sonarqube + db | trafego do banco, sem rota para fora |
+| `dockroute_default` (`external`) | sonarqube + cloudflared | origem do tunnel |
 
-Por isso a rede tem `name: sonarnet` fixo, sem o prefixo do projeto.
-Com o tunnel ativo, `dockroute.type` e `dockroute.target` sao ignorados.
+O **banco fica fora** da rede compartilhada: de dentro dela o host `db` nem resolve.
+
+A rede `dockroute_default` precisa existir antes do deploy (ela e criada pelo stack do
+dockroute/cloudflared). Se o seu stack usar outro nome, ajuste `name:` no bloco `networks`.
+
+Com isso, `dockroute.tunnel.service: "http://sonarqube:9000"` resolve do lado do cloudflared.
 
 A porta `9000` fica publicada apenas em `127.0.0.1`, ou seja, so acessivel de dentro do
 host. A porta de entrada externa e o tunnel. Para liberar acesso direto na rede (util no
