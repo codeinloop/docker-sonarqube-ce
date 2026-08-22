@@ -77,6 +77,9 @@ services:
         SONARQUBE_VERSION: ${SONARQUBE_VERSION}
         PLUGIN_VERSION: ${PLUGIN_VERSION}
     image: sonarqube-ce-branch:${PLUGIN_VERSION}
+    # A imagem e construida aqui e nao existe em registry nenhum. Sem isto o deploy
+    # tenta dar pull dela e falha com "pull access denied".
+    pull_policy: build
     container_name: sonarqube
     restart: unless-stopped
     depends_on:

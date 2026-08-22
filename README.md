@@ -8,8 +8,19 @@ Dominio: **https://sonar.codeinloop.net**
 
 ## Subir
 
-No Arcane: use **Build & Deploy** na primeira vez. O botao **Up** sozinho nao roda o build,
-e a imagem `sonarqube-ce-branch` nao existe em nenhum registry.
+A imagem `sonarqube-ce-branch` e construida localmente e **nao existe em nenhum registry**.
+Por isso o servico declara `pull_policy: build`.
+
+No Arcane, alem disso:
+
+1. Use **Build & Deploy** (o botao **Up** sozinho nao roda o build).
+2. Deixe a **Pull policy do deploy em "never pull"**. Com "pull if not present" ou
+   "always pull latest", o Arcane tenta baixar a imagem antes de subir e falha com
+   `pull access denied for sonarqube-ce-branch`. Essa configuracao fica lembrada
+   entre deploys.
+
+Se preferir que o Arcane so faca pull, publique a imagem num registry (ex.: o Container
+Registry do proprio GitLab) e troque o `image:` pelo endereco publicado.
 
 Local, para comparar:
 
