@@ -2,14 +2,23 @@
 
 ARG SONARQUBE_VERSION=26.5.0.122743-community
 ARG PLUGIN_VERSION=26.5.0
+# Fork com fix de compatibilidade para SonarQube Community 25.3+/26.x (PR #254,
+# ainda nao mergeado/lancado oficialmente pela insideapp-fr):
+# https://github.com/insideapp-fr/sonar-flutter/pull/254
+ARG FLUTTER_PLUGIN_VERSION=0.5.3
+ARG FLUTTER_PLUGIN_REPO=AdrienAudouard/sonar-flutter
 
 # --- Estagio 1: baixa o JAR do plugin e o webapp remendado -------------------
 FROM alpine:3.23 AS downloader
 ARG PLUGIN_VERSION
+ARG FLUTTER_PLUGIN_VERSION
+ARG FLUTTER_PLUGIN_REPO
 ARG DOWNLOAD_BASE_URL=https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}
+ARG FLUTTER_DOWNLOAD_BASE_URL=https://github.com/${FLUTTER_PLUGIN_REPO}/releases/download/v${FLUTTER_PLUGIN_VERSION}
 
 ADD ${DOWNLOAD_BASE_URL}/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar /tmp/sonarqube-community-branch-plugin.jar
 ADD ${DOWNLOAD_BASE_URL}/sonarqube-webapp.zip /tmp/sonarqube-webapp.zip
+ADD ${FLUTTER_DOWNLOAD_BASE_URL}/sonar-flutter-plugin-${FLUTTER_PLUGIN_VERSION}.jar /tmp/sonar-flutter-plugin.jar
 
 RUN apk add --no-cache unzip \
  && mkdir -p /opt/sonarqube/web \
@@ -26,6 +35,7 @@ RUN rm -rf /opt/sonarqube/web/*  && install -d -o sonarqube -g root -m 555 /opt/
 
 # O JAR fica em plugin-dist/, fora de extensions/, para o volume nao mascara-lo.
 COPY --from=downloader --chown=sonarqube:root --chmod=444 /tmp/sonarqube-community-branch-plugin.jar /opt/sonarqube/plugin-dist/sonarqube-community-branch-plugin.jar
+COPY --from=downloader --chown=sonarqube:root --chmod=444 /tmp/sonar-flutter-plugin.jar /opt/sonarqube/plugin-dist/sonar-flutter-plugin.jar
 COPY --from=downloader --chown=sonarqube:root --chmod=550 /opt/sonarqube/web /opt/sonarqube/web
 COPY --chown=root:root --chmod=555 entrypoint.sh /opt/sonarqube/docker/entrypoint-branch-plugin.sh
 
