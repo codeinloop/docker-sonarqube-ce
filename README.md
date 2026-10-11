@@ -46,8 +46,8 @@ dos containers e recriado), o SonarQube entra declarativamente nas duas redes:
 
 O **banco fica fora** da rede compartilhada: de dentro dela o host `db` nem resolve.
 
-A rede `dockroute_default` precisa existir antes do deploy (ela e criada pelo stack do
-dockroute/cloudflared). Se o seu stack usar outro nome, ajuste `name:` no bloco `networks`.
+A rede externa precisa existir antes do deploy (ela e criada pelo stack do dockroute/cloudflared).
+O nome dela vem de `DOCKROUTE_NETWORK` no `.env` (padrao `dockroute_default`).
 
 Com isso, `dockroute.tunnel.service: "http://sonarqube:9000"` resolve do lado do cloudflared.
 O MCP segue a mesma regra, com hostname proprio: `dockroute.tunnel.service: "http://sonarqube-mcp:8080"`.
