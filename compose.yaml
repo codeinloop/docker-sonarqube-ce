@@ -5,9 +5,10 @@ x-arcane:
   icon-light: sonarqube
   icon-dark: sonarqube
   urls:
-    - https://sonar.codeinloop.net
+    - https://${SONAR_DOMAIN}
     - https://docs.sonarsource.com/sonarqube-server/10.8/setup-and-upgrade/install-the-server/installing-the-database
     - https://github.com/mc1arke/sonarqube-community-branch-plugin
+    - https://docs.sonarsource.com/sonarqube-mcp-server/
   tags:
     - name: code-quality
       color: blue
@@ -15,6 +16,8 @@ x-arcane:
       color: purple
     - name: devtools
       color: green
+    - name: mcp
+      color: orange
 
 services:
   sysctl:
@@ -110,11 +113,63 @@ services:
       dockroute.hostname: "${SONAR_DOMAIN}"
       dockroute.tunnel.service: "http://sonarqube:9000"
 
+  # [VIDEO - PARTE 5] MCP Server: deixa agentes de IA (Claude Code, Cursor, Copilot...)
+  # consultarem issues, hotspots, quality gates e regras deste SonarQube.
+  # A doc "SonarQube Server-hosted" (sonar.mcp.* + proxy em <sonar>/mcp) vale so para as
+  # edicoes comerciais: o Community Build nao tem essas propriedades. Por isso o MCP roda
+  # como container proprio, em modo HTTP, e ganha o seu proprio hostname no tunnel.
+  mcp:
+    image: sonarsource/sonarqube-mcp:${MCP_VERSION}
+    container_name: sonarqube-mcp
+    init: true
+    restart: unless-stopped
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+    environment:
+      # Fala com o SonarQube pela rede interna, sem dar a volta pelo Cloudflare.
+      SONARQUBE_URL: http://sonarqube:9000
+      SONARQUBE_TRANSPORT: http
+      # 0.0.0.0 e so o bind DENTRO do container; quem decide a exposicao e "ports" e o tunnel.
+      SONARQUBE_HTTP_HOST: 0.0.0.0
+      SONARQUBE_HTTP_PORT: 8080
+      # Sem SONARQUBE_TOKEN aqui de proposito: o servidor e stateless e cada cliente manda
+      # o proprio user token em "Authorization: Bearer ...". Ninguem herda credencial do host.
+      # Origens de navegador permitidas (CORS). So importa para clientes web, nao para CLIs.
+      SONARQUBE_HTTP_ALLOWED_ORIGINS: https://${MCP_DOMAIN}
+      TELEMETRY_DISABLED: ${MCP_TELEMETRY_DISABLED:-false}
+    volumes:
+      # STORAGE_PATH padrao da imagem (/app/storage, ja criado e pertencente ao appuser).
+      # Montar o volume nesse caminho herda a permissao certa no primeiro boot.
+      - mcp_data:/app/storage
+    ports:
+      - "${MCP_BIND:-127.0.0.1}:${MCP_PORT:-8080}:8080"
+    healthcheck:
+      # A imagem e alpine sem curl; o wget do busybox falha em HTTP != 2xx.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      # sonarnet: alcanca o SonarQube. dockroute_network: e onde o cloudflared o alcanca.
+      - sonarnet
+      - dockroute_network
+    labels:
+      arcane.icon: sonarqube
+      arcane.icon-light: sonarqube
+      arcane.icon-dark: sonarqube
+      # Hostname proprio no tunnel. O endpoint para os agentes e https://${MCP_DOMAIN}/mcp.
+      dockroute.enabled: "true"
+      dockroute.hostname: "${MCP_DOMAIN}"
+      dockroute.tunnel.service: "http://sonarqube-mcp:8080"
+
 volumes:
   postgres_data:
   sonarqube_extensions:
   sonarqube_data:
   sonarqube_logs:
+  mcp_data:
 
 networks:
   sonarnet:
