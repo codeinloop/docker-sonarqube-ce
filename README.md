@@ -8,6 +8,38 @@ agentes de IA, metadados para o [Arcane](https://getarcane.app) e DNS via [DockR
 Os dominios vem do `.env` (`SONAR_DOMAIN` e `MCP_DOMAIN`). Nos exemplos deste README eles
 aparecem como `sonar.example.com` e `mcp.sonar.example.com`: troque pelos seus.
 
+## Vídeo
+
+[![SonarQube Community com Docker Compose](https://img.youtube.com/vi/Nhy3cNaUv2o/hqdefault.jpg)](https://youtu.be/Nhy3cNaUv2o)
+
+▶️ **Assista no YouTube (pt-BR):** https://youtu.be/Nhy3cNaUv2o
+
+Neste vídeo eu mostro como instalar e configurar o SonarQube Community usando Docker Compose,
+PostgreSQL e o Arcane como gerenciador do ambiente. Passamos pela arquitetura da instalação,
+persistência dos dados, configuração inicial, Quality Profiles, Quality Gates e também pelo uso
+de plugins da comunidade para adicionar funcionalidades que não fazem parte da instalação padrão.
+
+Depois colocamos o SonarQube para trabalhar de verdade. Pegamos um projeto desenvolvido com
+bastante auxílio de IA, executamos testes, geramos o relatório de coverage e fazemos uma análise
+local usando o SonarScanner. A partir dos resultados, exploramos problemas de segurança, code
+smells, duplicação, cobertura de testes e outros pontos encontrados pelo Sonar, além de corrigir
+um problema e executar uma nova análise para entender como o resultado muda.
+
+A ideia é entender todo o fluxo manual antes de automatizá-lo em uma pipeline:
+
+```
+código → testes → coverage → SonarScanner → SonarQube → Quality Gate
+```
+
+No próximo passo, esse mesmo processo pode ser levado para o GitLab CI para que cada alteração
+seja analisada automaticamente.
+
+Para empresas que precisam de apoio com licenciamento ou implementação do SonarQube, a
+[ORBYON](https://orbyon.net.br/#contato) também pode auxiliar através do contato
+[sonar@orbyon.net.br](mailto:sonar@orbyon.net.br).
+
+Repositório: https://gitlab.com/codeinloop/ci-cd/docker-sonarqube-ce
+
 ## Subir
 
 A imagem `sonarqube-ce-branch` e construida localmente e **nao existe em nenhum registry**.
